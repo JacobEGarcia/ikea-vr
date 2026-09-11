@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>UTGÅNG — a VR IKEA horror game</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --blue:#0058a3; --yellow:#ffdb00; --ink:#111418; --paper:#f4efe4; --red:#a31212;
+  }
+  html,body{margin:0;padding:0;height:100%;background:#05070f;overflow:hidden;
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-user-select:none;user-select:none;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  /* ---------- title / overlays ---------- */
+  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% 20%, #10254a 0%, #05070f 70%);z-index:20;color:var(--paper);}
+  .panel{max-width:640px;width:min(92vw,640px);text-align:center;padding:34px 30px 30px;}
+  .logo{display:inline-block;background:var(--blue);color:var(--yellow);font-weight:800;
+    letter-spacing:.06em;border-radius:50%/28%;padding:14px 44px;font-size:44px;line-height:1;
+    box-shadow:0 10px 40px rgba(0,0,0,.55);}
+  h1{font-size:52px;letter-spacing:.34em;margin:26px 0 6px;font-weight:800;text-indent:.34em;}
+  .sub{color:#9fb4d8;font-size:15px;letter-spacing:.12em;text-transform:uppercase;}
+  .premise{margin:22px auto 4px;max-width:520px;color:#d8d2c2;font-size:16px;line-height:1.55;}
+  .controls{margin:20px auto 0;max-width:560px;color:#8b95a6;font-size:13px;line-height:1.8;}
+  .controls b{color:#c9d3e4;font-weight:600;}
+  .btnrow{margin-top:26px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+  button{cursor:pointer;border:0;font-family:inherit;}
+  .btn-primary{background:var(--yellow);color:#1a1500;font-weight:800;letter-spacing:.14em;
+    font-size:15px;padding:14px 34px;border-radius:4px;}
+  .btn-primary:hover{background:#ffe34d;}
+  .btn-vr{background:transparent;color:var(--yellow);border:2px solid var(--yellow);
+    font-weight:800;letter-spacing:.14em;font-size:15px;padding:12px 30px;border-radius:4px;}
+  .btn-vr:hover{background:rgba(255,219,0,.12);}
+  .fineprint{margin-top:26px;color:#5f6b80;font-size:11px;letter-spacing:.06em;}
+  #death .panel h1{color:#e0534a;}
+  #win .panel h1{color:#7fd17f;}
+  .statline{color:#d8d2c2;font-size:15px;line-height:2;margin-top:8px;}
+  .hidden{display:none !important;}
+
+  /* ---------- desktop HUD ---------- */
+  #hud{position:fixed;left:0;right:0;bottom:0;z-index:10;pointer-events:none;
+    display:flex;justify-content:center;padding:0 0 18px;}
+  #hud .wrap{display:flex;gap:22px;align-items:flex-end;}
+  .meter{width:130px;}
+  .meter .lbl{font-size:10px;letter-spacing:.18em;color:#aeb8c9;margin-bottom:4px;text-transform:uppercase;}
+  .meter .bar{height:7px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;}
+  .meter .fill{height:100%;width:100%;border-radius:3px;transition:width .15s linear;}
+  #m-health .fill{background:#d8453a;} #m-stam .fill{background:#7fb069;}
+  #m-hunger .fill{background:#e0a33a;} #m-batt .fill{background:#5aa9e6;}
+  #phasebox{position:fixed;top:16px;left:0;right:0;text-align:center;z-index:10;pointer-events:none;}
+  #phase-title{color:#f4efe4;font-size:15px;letter-spacing:.3em;font-weight:700;text-transform:uppercase;
+    text-shadow:0 2px 12px rgba(0,0,0,.8);}
+  #phase-timer{color:#9fb4d8;font-size:13px;letter-spacing:.22em;margin-top:4px;font-variant-numeric:tabular-nums;}
+  #banner{position:fixed;top:22%;left:0;right:0;text-align:center;z-index:11;pointer-events:none;
+    color:var(--yellow);font-size:20px;letter-spacing:.24em;font-weight:700;opacity:0;
+    text-shadow:0 2px 18px rgba(0,0,0,.9);transition:opacity .5s;}
+  #prompt{position:fixed;left:0;right:0;bottom:112px;text-align:center;z-index:10;pointer-events:none;
+    color:#e8e2d2;font-size:14px;letter-spacing:.14em;text-shadow:0 1px 8px #000;opacity:0;transition:opacity .2s;}
+  #vignette{position:fixed;inset:0;z-index:9;pointer-events:none;opacity:0;
+    background:radial-gradient(90% 90% at 50% 50%, transparent 55%, rgba(160,10,10,.55) 100%);transition:opacity .12s;}
+  #crosshair{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;
+    background:rgba(244,239,228,.85);z-index:10;pointer-events:none;box-shadow:0 0 6px rgba(0,0,0,.8);}
+</style>
+<script type="importmap">
+  {"imports":{"three":"./1-three.module.js"}}
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="title" class="overlay">
+  <div class="panel">
+    <div class="logo">UTGÅNG</div>
+    <h1>UTGÅNG</h1>
+    <div class="sub">a VR IKEA horror game</div>
+    <p class="premise">Closing time was 22:00. You fell asleep inside a LÖVKULLA wardrobe.
+      Now the showroom is dark, the flat-packs whisper, and the staff are restocking.
+      The staff are always restocking.<br><br>
+      Scavenge by day. Survive three nights. The exit opens at dawn on the fourth day.</p>
+    <div class="controls">
+      <b>Desktop</b> — WASD move · mouse look · SHIFT run · C crouch · F flashlight · E take / eat<br>
+      <b>Quest&nbsp;3</b> — ENTER VR · left stick move · right stick snap turn · squeeze to take / eat · A flashlight
+    </div>
+    <div class="btnrow">
+      <button id="start-desktop" class="btn-primary">ENTER THE STORE</button>
+      <button id="start-vr" class="btn-vr">ENTER VR</button>
+    </div>
+    <div class="fineprint">Unofficial fan game. Not affiliated with Inter IKEA Systems B.V. Best played with sound on.</div>
+  </div>
+</div>
+
+<div id="death" class="overlay hidden">
+  <div class="panel">
+    <h1>RESTOCKED.</h1>
+    <div class="sub">the staff thank you for your visit</div>
+    <div id="death-stats" class="statline"></div>
+    <div class="btnrow">
+      <button id="retry" class="btn-primary">TRY NIGHT <span id="retry-night"></span> AGAIN</button>
+      <button id="death-vr" class="btn-vr">RETRY IN VR</button>
+    </div>
+  </div>
+</div>
+
+<div id="win" class="overlay hidden">
+  <div class="panel">
+    <div class="logo">UTGÅNG</div>
+    <h1>UTGÅNG</h1>
+    <div class="sub">you found the exit. the meatballs were worth it.</div>
+    <div id="win-stats" class="statline"></div>
+    <div class="btnrow"><button id="again" class="btn-primary">PLAY AGAIN</button></div>
+    <div class="fineprint">Unofficial fan game. Not affiliated with Inter IKEA Systems B.V.</div>
+  </div>
+</div>
+
+<div id="phasebox"><div id="phase-title"></div><div id="phase-timer"></div></div>
+<div id="banner"></div>
+<div id="prompt"></div>
+<div id="vignette"></div>
+<div id="crosshair" class="hidden"></div>
+<div id="hud" class="hidden">
+  <div class="wrap">
+    <div class="meter" id="m-health"><div class="lbl">Health</div><div class="bar"><div class="fill"></div></div></div>
+    <div class="meter" id="m-stam"><div class="lbl">Stamina</div><div class="bar"><div class="fill"></div></div></div>
+    <div class="meter" id="m-hunger"><div class="lbl">Hunger</div><div class="bar"><div class="fill"></div></div></div>
+    <div class="meter" id="m-batt"><div class="lbl">Battery</div><div class="bar"><div class="fill"></div></div></div>
+  </div>
+</div>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>
